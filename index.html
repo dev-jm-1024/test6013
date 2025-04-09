@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>경품 뽑기 게임</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Vue.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.3.4/vue.global.prod.min.js"></script>
+  <!-- 폰트 (Noto Sans Korean) -->
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Noto Sans KR', sans-serif;
+      background: linear-gradient(135deg, #f5f7fa, #c3cfe2);
+      min-height: 100vh;
+    }
+
+    .ball {
+      transition: all 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      transform-style: preserve-3d;
+      perspective: 1000px;
+    }
+
+    .ball.open {
+      transform: rotateY(180deg);
+    }
+
+    .ball-front, .ball-back {
+      backface-visibility: hidden;
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      border-radius: 9999px;
+    }
+
+    .ball-back {
+      transform: rotateY(180deg);
+    }
+
+    .modal {
+      transition: all 0.3s ease;
+    }
+
+    @keyframes float {
+      0% { transform: translateY(0px); }
+      50% { transform: translateY(-10px); }
+      100% { transform: translateY(0px); }
+    }
+
+    .float {
+      animation: float 3s ease-in-out infinite;
+    }
+
+    .confetti {
+      position: absolute;
+      width: 10px;
+      height: 10px;
+      animation: confetti-fall 5s ease-in-out forwards;
+      opacity: 0;
+    }
+
+    @keyframes confetti-fall {
+      0% {
+        transform: translateY(-100vh) rotate(0deg);
+        opacity: 1;
+      }
+      100% {
+        transform: translateY(100vh) rotate(720deg);
+        opacity: 0;
+      }
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-pink-100 via-purple-100 to-blue-100">
+  <div id="app" class="container mx-auto px-4 py-8">
+    <!-- 헤더 섹션 -->
+    <div class="text-center mb-10">
+      <h1 class="text-4xl font-bold mb-3 text-transparent bg-clip-text bg-gradient-to-r from-pink-500 to-violet-500">
+        행운의 경품 뽑기
+      </h1>
+      <p class="text-lg text-indigo-600 font-medium">
+        1~10번 공을 선택하여 당첨 여부를 확인하세요!
+      </p>
+    </div>
+
+    <!-- 공 컨테이너 -->
+    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 max-w-3xl mx-auto">
+      <div 
+        v-for="number in 10" 
+        :key="number"
+        class="ball relative aspect-square cursor-pointer"
+        :class="{ 'open': openBalls[number-1] }"
+        @click="selectBall(number)"
+      >
+        <!-- 공 앞면 -->
+        <div class="ball-front flex items-center justify-center rounded-full shadow-lg" 
+          :class="[
+            'bg-gradient-to-br',
+            [
+              'from-pink-300 to-pink-400',
+              'from-purple-300 to-purple-400',
+              'from-blue-300 to-blue-400',
+              'from-green-300 to-green-400',
+              'from-yellow-300 to-yellow-400',
+              'from-red-300 to-red-400',
+              'from-indigo-300 to-indigo-400',
+              'from-teal-300 to-teal-400',
+              'from-orange-300 to-orange-400',
+              'from-cyan-300 to-cyan-400'
+            ][number-1]
+          ]"
+        >
+          <span class="text-2xl font-bold text-white drop-shadow">{{ number }}</span>
+        </div>
+        
+        <!-- 공 뒷면 -->
+        <div class="ball-back flex items-center justify-center rounded-full shadow-xl" 
+          :class="{
+            'bg-gradient-to-br from-amber-300 to-amber-500': ballResults[number-1],
+            'bg-gradient-to-br from-gray-300 to-gray-400': !ballResults[number-1]
+          }"
+        >
+          <span class="text-xl font-bold" :class="ballResults[number-1] ? 'text-white' : 'text-gray-700'">
+            {{ ballResults[number-1] ? '당첨!' : '꽝!' }}
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 당첨 모달 -->
+    <div v-if="showWinModal" class="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-70 modal">
+      <div class="bg-gradient-to-r from-violet-200 via-pink-200 to-purple-200 p-6 rounded-2xl shadow-2xl max-w-md w-11/12 relative transform transition-all scale-100">
+        <!-- 닫기 버튼 -->
+        <button @click="showWinModal = false" class="absolute top-3 right-3 text-gray-600 hover:text-gray-800">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+        
+        <!-- 모달 내용 -->
+        <div class="text-center py-4">
+          <div class="text-3xl font-bold text-indigo-600 mb-4">🎉 축하합니다! 🎉</div>
+          <div class="text-xl text-violet-700 mb-6">당첨되셨습니다!</div>
+          
+          <div class="flex flex-col sm:flex-row justify-center gap-3 mt-4">
+            <button @click="showDetails" class="btn bg-gradient-to-r from-blue-500 to-indigo-500 text-white py-3 px-6 rounded-full font-bold hover:from-blue-600 hover:to-indigo-600 shadow-md transform hover:scale-105 transition-all">
+              자세한 내용 보기
+            </button>
+            <button @click="resetGame" class="btn bg-gradient-to-r from-purple-500 to-pink-500 text-white py-3 px-6 rounded-full font-bold hover:from-purple-600 hover:to-pink-600 shadow-md transform hover:scale-105 transition-all">
+              다시 뽑기
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 상세 정보 패널 -->
+    <div v-if="showDetailsPanel" class="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-60 modal">
+      <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-md w-11/12 relative transform transition-all scale-100 border-4 border-indigo-200">
+        <button @click="showDetailsPanel = false" class="absolute top-3 right-3 text-gray-600 hover:text-gray-800">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+        
+        <div class="text-center py-2">
+          <div class="text-2xl font-bold text-indigo-600 mb-4">PC 조립 함께하기</div>
+          <div class="text-gray-700 mb-6 text-left">
+            <p class="mb-3">최신 부품으로 맞춤형 PC를 같이 조립해보세요! 신나는 PC 조립 체험에 초대합니다.</p>
+            <p class="mb-3">삽겹살 혹은 설렁탕 등 맛있는 석식제공해드립니다. 원하는 음식을을을 선택할 수 있습니다.</p>
+            <p>함께하는 PC조립으로 조립에 대한 견문을 넓혀보세요!</p>
+          </div>
+          <button @click="showDetailsPanel = false" class="bg-gradient-to-r from-indigo-500 to-blue-500 text-white py-3 px-6 rounded-full font-bold hover:from-indigo-600 hover:to-blue-600 shadow-md transform hover:scale-105 transition-all">
+            닫기
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const { createApp, ref } = Vue;
+    
+    createApp({
+      setup() {
+        const openBalls = ref(Array(10).fill(false));
+        const ballResults = ref(Array(10).fill(false));
+        const showWinModal = ref(false);
+        const showDetailsPanel = ref(false);
+        
+        function selectBall(number) {
+          if (!openBalls.value[number-1]) {
+            // 이미 열린 공이 아닌 경우에만 처리
+            openBalls.value[number-1] = true;
+            
+            // 항상 당첨되도록 수정 (100% 확률)
+            const isWinner = true;
+            ballResults.value[number-1] = isWinner;
+            
+            if (isWinner) {
+              // 당첨된 경우 컨페티 효과 생성
+              createConfetti();
+              
+              // 1초 후 당첨 모달 표시
+              setTimeout(() => {
+                showWinModal.value = true;
+              }, 1000);
+            }
+          }
+        }
+        
+        function showDetails() {
+          showWinModal.value = false;
+          showDetailsPanel.value = true;
+        }
+        
+        function resetGame() {
+          openBalls.value = Array(10).fill(false);
+          ballResults.value = Array(10).fill(false);
+          showWinModal.value = false;
+        }
+        
+        function createConfetti() {
+          const colors = ['#FF69B4', '#7B68EE', '#3498db', '#2ecc71', '#f1c40f', '#e74c3c'];
+          
+          for (let i = 0; i < 100; i++) {
+            const confetti = document.createElement('div');
+            confetti.classList.add('confetti');
+            
+            // 랜덤 위치, 색상, 크기 및 지연
+            confetti.style.left = Math.random() * 100 + 'vw';
+            confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+            confetti.style.width = Math.random() * 10 + 5 + 'px';
+            confetti.style.height = Math.random() * 10 + 5 + 'px';
+            confetti.style.animationDelay = Math.random() * 3 + 's';
+            
+            document.body.appendChild(confetti);
+            
+            // 애니메이션 종료 후 요소 제거
+            setTimeout(() => {
+              confetti.remove();
+            }, 5000);
+          }
+        }
+        
+        return {
+          openBalls,
+          ballResults,
+          showWinModal,
+          showDetailsPanel,
+          selectBall,
+          showDetails,
+          resetGame
+        };
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>
